@@ -45,6 +45,7 @@ Run the `/usage` command in OpenCode chat:
 /usage copilot  # Show GitHub Copilot only
 /usage openai   # Show OpenAI/Codex only
 /usage claude   # Show Claude placeholder
+```
 
 ### Example Output
 
@@ -54,7 +55,7 @@ Run the `/usage` command in OpenCode chat:
 ├───────────────────────────────────────────────┤
 │ GitHub Copilot (Education)                    │
 │   Premium:  ███░░░░░░░░░░░░  10%              │
-│   Premium Resets: 22d 16h (01/05/26 9:09 PM) │
+│   Premium Resets: 22d 16h (01/05/26 9:09 PM)  │
 │   Requests: 31/300 used                       │
 │   Remaining: 269 requests                     │
 ├───────────────────────────────────────────────┤
