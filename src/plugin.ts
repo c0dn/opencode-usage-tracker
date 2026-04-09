@@ -224,7 +224,6 @@ async function injectResponse(
         {
           type: "text",
           text: text,
-          synthetic: true,
           ignored: true,
         },
       ],
@@ -239,10 +238,6 @@ async function injectResponse(
  * Fallback to the historical sentinel throw for backward compatibility.
  */
 function stopCommandFlow(output: { parts: unknown[] }): void {
-  if ("noReply" in output) {
-    (output as { noReply?: boolean }).noReply = true;
-    return;
-  }
-
+  void output;
   throw new Error(HANDLED_SENTINEL);
 }
