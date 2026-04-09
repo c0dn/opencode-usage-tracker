@@ -23,24 +23,47 @@ import { fetchClaudeUsage } from "./providers/claude.ts";
 import { fetchCopilotUsage } from "./providers/copilot.ts";
 import { fetchOpenAIUsage } from "./providers/openai.ts";
 
-const COMMAND_MARKER = "[USAGE_TRACKER_COMMAND]";
+const HANDLED_SENTINEL = "__USAGE_TRACKER_HANDLED__";
 
 type ProviderName = "claude" | "copilot" | "openai" | "all";
 
 function parseProviderArg(text: string): ProviderName {
   const lower = text.toLowerCase().trim();
-  
-  if (lower.includes("claude") || lower.includes("anthropic")) {
-    return "claude";
+  const [firstToken] = lower.split(/\s+/);
+
+  switch (firstToken) {
+    case "claude":
+    case "anthropic":
+      return "claude";
+    case "copilot":
+    case "github":
+      return "copilot";
+    case "openai":
+    case "codex":
+    case "chatgpt":
+      return "openai";
+    default:
+      break;
   }
-  if (lower.includes("copilot") || lower.includes("github")) {
-    return "copilot";
-  }
-  if (lower.includes("openai") || lower.includes("codex") || lower.includes("chatgpt")) {
-    return "openai";
-  }
-  
+
   return "all";
+}
+
+function isUsageCommand(command: string): boolean {
+  return command.replace(/^\//, "") === "usage";
+}
+
+function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
+  switch (provider) {
+    case "claude":
+      return Boolean(tokens.claude?.configured);
+    case "copilot":
+      return Boolean(tokens.copilot?.accessToken);
+    case "openai":
+      return Boolean(tokens.openai?.accessToken);
+    case "all":
+      return Boolean(tokens.claude?.configured || tokens.copilot?.accessToken || tokens.openai?.accessToken);
+  }
 }
 
 async function fetchUsageData(
@@ -48,34 +71,50 @@ async function fetchUsageData(
   provider: ProviderName
 ): Promise<UsageData[]> {
   const results: UsageData[] = [];
-  const fetchPromises: Promise<void>[] = [];
+  const fetchPromises: Array<{ name: string; request: Promise<UsageData> }> = [];
   
   // Claude (placeholder only)
   if ((provider === "all" || provider === "claude") && tokens.claude?.configured) {
-    fetchPromises.push(
-      fetchClaudeUsage()
-        .then(data => { results.push(data); })
-    );
+    fetchPromises.push({ name: "Claude", request: fetchClaudeUsage() });
   }
   
   // Copilot
   if ((provider === "all" || provider === "copilot") && tokens.copilot?.accessToken) {
-    fetchPromises.push(
-      fetchCopilotUsage(tokens.copilot.accessToken)
-        .then(data => { results.push(data); })
-    );
+    fetchPromises.push({
+      name: "GitHub Copilot",
+      request: fetchCopilotUsage(tokens.copilot.accessToken),
+    });
   }
   
   // OpenAI
   if ((provider === "all" || provider === "openai") && tokens.openai?.accessToken) {
-    fetchPromises.push(
-      fetchOpenAIUsage(tokens.openai.accessToken, tokens.openai.accountId)
-        .then(data => { results.push(data); })
-    );
+    fetchPromises.push({
+      name: "OpenAI/Codex",
+      request: fetchOpenAIUsage(tokens.openai.accessToken, tokens.openai.accountId),
+    });
   }
   
   // Fetch all in parallel
-  await Promise.all(fetchPromises);
+  const settled = await Promise.allSettled(fetchPromises.map((item) => item.request));
+
+  for (const [index, result] of settled.entries()) {
+    const providerInfo = fetchPromises[index];
+
+    if (!providerInfo) {
+      continue;
+    }
+
+    if (result.status === "fulfilled") {
+      results.push(result.value);
+      continue;
+    }
+
+    results.push({
+      provider: providerInfo.name,
+      windows: [],
+      error: result.reason instanceof Error ? result.reason.message : "Unknown error",
+    });
+  }
   
   // Sort results in consistent order: Claude, Copilot, OpenAI
   const order = ["Claude", "GitHub Copilot", "OpenAI/Codex"];
@@ -93,25 +132,27 @@ export async function UsageTrackerPlugin(
      */
     config: async (input) => {
       input.command ??= {};
-      
+
+      if (input.command["usage"]) {
+        return;
+      }
+
       input.command["usage"] = {
-        template: `${COMMAND_MARKER}\n$ARGUMENTS`,
+        template: "$ARGUMENTS",
         description: "Show AI provider usage",
       };
     },
     
     /**
-     * Handle the /usage command
+     * Handle /usage command before normal command execution.
      */
-    "chat.message": async (input, output) => {
-      const text = output.parts.find((p) => p.type === "text")?.text ?? "";
-      
-      if (!text.includes(COMMAND_MARKER)) {
+    "command.execute.before": async (input, output) => {
+      if (!isUsageCommand(input.command)) {
         return;
       }
-      
-      // Extract provider argument from the command
-      const args = text.replace(COMMAND_MARKER, "").trim();
+
+      // Extract provider argument from slash command args
+      const args = input.arguments.trim();
       const provider = parseProviderArg(args);
       
       // Show loading toast
@@ -125,8 +166,8 @@ export async function UsageTrackerPlugin(
         tokens = await getAuthTokens();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : "Unknown error";
-        await injectResponse(client, input, formatError(`Failed to read auth: ${errorMsg}`));
-        return;
+        await injectResponse(client, input.sessionID, formatError(`Failed to read auth: ${errorMsg}`));
+        return stopCommandFlow(output);
       }
       
       // Check if any providers are configured
@@ -136,21 +177,33 @@ export async function UsageTrackerPlugin(
         tokens.openai?.accessToken;
       
       if (!hasProviders) {
-        await injectResponse(client, input, formatNoProviders());
-        return;
+        await injectResponse(client, input.sessionID, formatNoProviders());
+        return stopCommandFlow(output);
+      }
+
+      if (!isProviderConfigured(tokens, provider)) {
+        await injectResponse(
+          client,
+          input.sessionID,
+          formatError(`Provider not configured: ${provider}`),
+        );
+        return stopCommandFlow(output);
       }
       
       // Fetch usage data
       const usageData = await fetchUsageData(tokens, provider);
       
       if (usageData.length === 0) {
-        await injectResponse(client, input, formatNoProviders());
-        return;
+        await injectResponse(client, input.sessionID, formatNoProviders());
+        return stopCommandFlow(output);
       }
       
       // Format and display results
       const output_text = formatUsageTable(usageData);
-      await injectResponse(client, input, output_text);
+      await injectResponse(client, input.sessionID, output_text);
+
+      // Prevent default LLM command execution for /usage.
+      return stopCommandFlow(output);
     },
   };
 }
@@ -160,25 +213,36 @@ export async function UsageTrackerPlugin(
  */
 async function injectResponse(
   client: PluginInput["client"],
-  input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string } },
+  sessionID: string,
   text: string
 ): Promise<void> {
   await client.session.prompt({
-    path: { id: input.sessionID },
+    path: { id: sessionID },
     body: {
       noReply: true,
-      agent: input.agent,
-      model: input.model,
       parts: [
         {
           type: "text",
           text: text,
+          synthetic: true,
           ignored: true,
         },
       ],
     },
   });
-  
-  // Throw to prevent LLM from processing
-  throw new Error("__USAGE_TRACKER_HANDLED__");
+}
+
+/**
+ * Stop command flow after we handled /usage ourselves.
+ *
+ * Newer OpenCode runtimes support command hook noReply, older runtimes don't.
+ * Fallback to the historical sentinel throw for backward compatibility.
+ */
+function stopCommandFlow(output: { parts: unknown[] }): void {
+  if ("noReply" in output) {
+    (output as { noReply?: boolean }).noReply = true;
+    return;
+  }
+
+  throw new Error(HANDLED_SENTINEL);
 }
