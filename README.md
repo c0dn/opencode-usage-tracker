@@ -1,6 +1,6 @@
 # OpenCode Usage Tracker
 
-A plugin for [OpenCode](https://opencode.ai) that displays your AI provider subscription usage directly in the chat interface.
+A plugin for [OpenCode](https://opencode.ai) that shows your provider usage directly in chat.
 
 ## Supported Providers
 
@@ -8,33 +8,19 @@ A plugin for [OpenCode](https://opencode.ai) that displays your AI provider subs
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
 | OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
-| Claude | - | Placeholder only (usage tracking unavailable) |
 
 ## Installation
 
-1. Clone the repository:
-
-```bash
-git clone https://github.com/Dylan-Liew/opencode-usage-tracker.git <plugin-directory>
-```
-
-2. Install dependencies:
-
-```bash
-cd <plugin-directory>
-bun install
-```
-
-3. Add the plugin to your `opencode.json` config file:
+Add the package to your OpenCode config:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["<plugin-directory>"]
+  "plugin": ["opencode-usage-tracker"]
 }
 ```
 
-4. Restart OpenCode.
+OpenCode installs npm plugins automatically at startup.
 
 ## Usage
 
@@ -44,7 +30,6 @@ Run the `/usage` command in OpenCode chat:
 /usage          # Show all providers
 /usage copilot  # Show GitHub Copilot only
 /usage openai   # Show OpenAI/Codex only
-/usage claude   # Show Claude placeholder
 ```
 
 ### Example Output
@@ -65,9 +50,6 @@ Run the `/usage` command in OpenCode chat:
 │   5-hour Resets: 2h 58m (9:09 PM)             │
 │   Weekly Resets: 6d 21h (15/04/26 9:09 PM)    │
 │   Credits: $0.00                              │
-├───────────────────────────────────────────────┤
-│ Claude                                        │
-│   Usage tracking unavailable                  │
 ╰───────────────────────────────────────────────╯
 ```
 
@@ -82,7 +64,6 @@ Tokens are automatically populated when you authenticate with providers in OpenC
 ## Notes
 
 - **Read-only**: This plugin only fetches usage data - it does not consume any quota
-- **Claude**: Usage tracking is not available for Claude (API limitations)
 - **Fresh Data**: Usage data is fetched fresh on each command (no caching)
 
 ## License

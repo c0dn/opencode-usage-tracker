@@ -7,9 +7,6 @@ import { homedir } from "os";
 import { join } from "path";
 
 export interface AuthTokens {
-  claude?: {
-    configured: boolean;
-  };
   copilot?: {
     accessToken: string;
   };
@@ -82,12 +79,6 @@ export async function getAuthTokens(): Promise<AuthTokens> {
   }
   
   const tokens: AuthTokens = {};
-  
-  // Claude / Anthropic - just check if configured (usage tracking unavailable)
-  const anthropic = authJson["anthropic"] || authJson["claude"];
-  if (anthropic) {
-    tokens.claude = { configured: true };
-  }
   
   // GitHub Copilot
   const copilot = authJson["copilot"] || authJson["github-copilot"];

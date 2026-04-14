@@ -1,14 +1,13 @@
 /**
  * OpenCode Usage Tracker Plugin
  * 
- * Displays subscription usage for AI providers (Copilot, OpenAI, Claude)
+ * Displays subscription usage for AI providers (Copilot and OpenAI)
  * directly in the OpenCode chat interface.
  * 
  * Commands:
  *   /usage          - Show all configured providers
  *   /usage copilot  - Show GitHub Copilot usage only
  *   /usage openai   - Show OpenAI/Codex usage only
- *   /usage claude   - Show Claude (placeholder only)
  */
 
 import type { Hooks, PluginInput } from "@opencode-ai/plugin";
@@ -19,22 +18,18 @@ import {
   formatError,
   type UsageData 
 } from "./utils/format.ts";
-import { fetchClaudeUsage } from "./providers/claude.ts";
 import { fetchCopilotUsage } from "./providers/copilot.ts";
 import { fetchOpenAIUsage } from "./providers/openai.ts";
 
 const HANDLED_SENTINEL = "__USAGE_TRACKER_HANDLED__";
 
-type ProviderName = "claude" | "copilot" | "openai" | "all";
+type ProviderName = "copilot" | "openai" | "all";
 
 function parseProviderArg(text: string): ProviderName {
   const lower = text.toLowerCase().trim();
   const [firstToken] = lower.split(/\s+/);
 
   switch (firstToken) {
-    case "claude":
-    case "anthropic":
-      return "claude";
     case "copilot":
     case "github":
       return "copilot";
@@ -55,14 +50,12 @@ function isUsageCommand(command: string): boolean {
 
 function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
   switch (provider) {
-    case "claude":
-      return Boolean(tokens.claude?.configured);
     case "copilot":
       return Boolean(tokens.copilot?.accessToken);
     case "openai":
       return Boolean(tokens.openai?.accessToken);
     case "all":
-      return Boolean(tokens.claude?.configured || tokens.copilot?.accessToken || tokens.openai?.accessToken);
+      return Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
   }
 }
 
@@ -72,11 +65,6 @@ async function fetchUsageData(
 ): Promise<UsageData[]> {
   const results: UsageData[] = [];
   const fetchPromises: Array<{ name: string; request: Promise<UsageData> }> = [];
-  
-  // Claude (placeholder only)
-  if ((provider === "all" || provider === "claude") && tokens.claude?.configured) {
-    fetchPromises.push({ name: "Claude", request: fetchClaudeUsage() });
-  }
   
   // Copilot
   if ((provider === "all" || provider === "copilot") && tokens.copilot?.accessToken) {
@@ -116,8 +104,8 @@ async function fetchUsageData(
     });
   }
   
-  // Sort results in consistent order: Claude, Copilot, OpenAI
-  const order = ["Claude", "GitHub Copilot", "OpenAI/Codex"];
+  // Sort results in consistent order: Copilot, OpenAI
+  const order = ["GitHub Copilot", "OpenAI/Codex"];
   results.sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider));
   
   return results;
@@ -172,7 +160,6 @@ export async function UsageTrackerPlugin(
       
       // Check if any providers are configured
       const hasProviders = 
-        tokens.claude?.configured || 
         tokens.copilot?.accessToken || 
         tokens.openai?.accessToken;
       
