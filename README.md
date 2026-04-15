@@ -8,6 +8,7 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
 | OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
+| Kimi for Coding | API key | Weekly usage and plan windows (experimental) |
 
 ## Installation
 
@@ -65,6 +66,8 @@ The plugin reads authentication tokens from OpenCode's `auth.json` file located 
 - macOS: `~/Library/Application Support/opencode/auth.json`
 
 Tokens are automatically populated when you authenticate with providers in OpenCode.
+
+For experimental Kimi support, the plugin looks for `kimi-for-coding.key` in `auth.json` and queries `https://api.kimi.com/coding/v1/usages`.
 
 ## Notes
 

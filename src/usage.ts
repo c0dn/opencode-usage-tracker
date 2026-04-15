@@ -1,8 +1,14 @@
 import { fetchCopilotUsage } from "./providers/copilot.ts";
+import { fetchKimiUsage } from "./providers/kimi.ts";
 import { fetchOpenAIUsage } from "./providers/openai.ts";
 import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
 import { type UsageData } from "./utils/format.ts";
-import type { ProviderName } from "./constants.ts";
+import {
+  PROVIDER_METADATA,
+  getProviderLabel,
+  type ProviderName,
+  type SingleProviderName,
+} from "./constants.ts";
 
 export type UsageResult =
   | { kind: "ok"; provider: ProviderName; providers: UsageData[] }
@@ -12,7 +18,7 @@ export type UsageResult =
 export async function fetchUsageResult(provider: ProviderName): Promise<UsageResult> {
   const tokens = await getAuthTokens();
 
-  const hasProviders = Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
+  const hasProviders = hasAnyProviderConfigured(tokens);
   if (!hasProviders) {
     return {
       kind: "empty",
@@ -47,34 +53,48 @@ export async function fetchUsageResult(provider: ProviderName): Promise<UsageRes
 }
 
 function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
-  switch (provider) {
-    case "copilot":
-      return Boolean(tokens.copilot?.accessToken);
-    case "openai":
-      return Boolean(tokens.openai?.accessToken);
-    case "all":
-      return Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
+  if (provider === "all") {
+    return hasAnyProviderConfigured(tokens);
   }
+
+  return PROVIDER_CONFIG_CHECKS[provider](tokens);
 }
+
+function hasAnyProviderConfigured(tokens: AuthTokens): boolean {
+  return PROVIDER_METADATA.some((provider) => PROVIDER_CONFIG_CHECKS[provider.id](tokens));
+}
+
+const PROVIDER_CONFIG_CHECKS: Record<SingleProviderName, (tokens: AuthTokens) => boolean> = {
+  copilot: (tokens) => Boolean(tokens.copilot?.accessToken),
+  openai: (tokens) => Boolean(tokens.openai?.accessToken),
+  kimi: (tokens) => Boolean(tokens.kimi?.apiKey),
+};
+
+const PROVIDER_USAGE_FETCHERS: Record<SingleProviderName, (tokens: AuthTokens) => Promise<UsageData>> = {
+  copilot: (tokens) => fetchCopilotUsage(tokens.copilot?.accessToken ?? ""),
+  openai: (tokens) => fetchOpenAIUsage(tokens.openai?.accessToken ?? "", tokens.openai?.accountId),
+  kimi: (tokens) => fetchKimiUsage(tokens.kimi?.apiKey ?? ""),
+};
 
 async function fetchUsageData(
   tokens: AuthTokens,
   provider: ProviderName,
 ): Promise<UsageData[]> {
   const results: UsageData[] = [];
-  const fetchPromises: Array<{ name: string; request: Promise<UsageData> }> = [];
+  const selectedProviders = provider === "all"
+    ? PROVIDER_METADATA
+    : PROVIDER_METADATA.filter((metadata) => metadata.id === provider);
 
-  if ((provider === "all" || provider === "copilot") && tokens.copilot?.accessToken) {
-    fetchPromises.push({
-      name: "GitHub Copilot",
-      request: fetchCopilotUsage(tokens.copilot.accessToken),
-    });
-  }
+  const fetchPromises: Array<{ provider: SingleProviderName; request: Promise<UsageData> }> = [];
 
-  if ((provider === "all" || provider === "openai") && tokens.openai?.accessToken) {
+  for (const providerMetadata of selectedProviders) {
+    if (!PROVIDER_CONFIG_CHECKS[providerMetadata.id](tokens)) {
+      continue;
+    }
+
     fetchPromises.push({
-      name: "OpenAI/Codex",
-      request: fetchOpenAIUsage(tokens.openai.accessToken, tokens.openai.accountId),
+      provider: providerMetadata.id,
+      request: PROVIDER_USAGE_FETCHERS[providerMetadata.id](tokens),
     });
   }
 
@@ -86,20 +106,19 @@ async function fetchUsageData(
       continue;
     }
 
+    const providerLabel = getProviderLabel(providerInfo.provider);
+
     if (result.status === "fulfilled") {
-      results.push(result.value);
+      results.push({ ...result.value, provider: providerLabel });
       continue;
     }
 
     results.push({
-      provider: providerInfo.name,
+      provider: providerLabel,
       windows: [],
       error: result.reason instanceof Error ? result.reason.message : "Unknown error",
     });
   }
-
-  const order = ["OpenAI/Codex", "GitHub Copilot"];
-  results.sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider));
 
   return results;
 }

@@ -4,3 +4,4 @@
 
 export { fetchCopilotUsage } from "./copilot.ts";
 export { fetchOpenAIUsage } from "./openai.ts";
+export { fetchKimiUsage } from "./kimi.ts";

@@ -14,6 +14,9 @@ export interface AuthTokens {
     accessToken: string;
     accountId?: string;
   };
+  kimi?: {
+    apiKey: string;
+  };
 }
 
 interface AuthJsonProvider {
@@ -98,6 +101,15 @@ export async function getAuthTokens(): Promise<AuthTokens> {
         accessToken,
         accountId: openai.accountId,
       };
+    }
+  }
+
+  // Kimi for Coding
+  const kimi = authJson["kimi-for-coding"] || authJson["kimi"];
+  if (kimi) {
+    const apiKey = kimi.key || kimi.token;
+    if (apiKey) {
+      tokens.kimi = { apiKey };
     }
   }
   
