@@ -1,6 +1,6 @@
 # OpenCode Usage Tracker
 
-A plugin for [OpenCode](https://opencode.ai) that shows your provider usage directly in chat.
+A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI dialog.
 
 ## Supported Providers
 
@@ -11,7 +11,15 @@ A plugin for [OpenCode](https://opencode.ai) that shows your provider usage dire
 
 ## Installation
 
-Add the package to your OpenCode config:
+Recommended: install with the OpenCode plugin installer so both the server and TUI targets are configured:
+
+```bash
+opencode plugin opencode-usage-tracker
+```
+
+If you want to configure it manually, add the package to both configs:
+
+`opencode.json`
 
 ```json
 {
@@ -20,11 +28,27 @@ Add the package to your OpenCode config:
 }
 ```
 
-OpenCode installs npm plugins automatically at startup.
+`tui.json`
+
+```json
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": ["opencode-usage-tracker"]
+}
+```
+
+The TUI dialog will not load if the package is only present in `opencode.json`.
 
 ## Usage
 
-Run the `/usage` command in OpenCode chat:
+Open the usage dialog from either:
+
+- `/usage` in chat
+- Command palette (`Ctrl+P`) -> `Usage Dashboard`
+
+You can select all providers or a specific provider from the picker dialog.
+
+Supported slash variants:
 
 ```
 /usage          # Show all providers
@@ -34,24 +58,7 @@ Run the `/usage` command in OpenCode chat:
 
 ### Example Output
 
-```
-╭───────────────────────────────────────────────╮
-│               AI Provider Usage               │
-├───────────────────────────────────────────────┤
-│ GitHub Copilot (Education)                    │
-│   Premium:  ███░░░░░░░░░░░░  10%              │
-│   Premium Resets: 22d 16h (01/05/26 9:09 PM)  │
-│   Requests: 31/300 used                       │
-│   Remaining: 269 requests                     │
-├───────────────────────────────────────────────┤
-│ OpenAI/Codex (Plus)                           │
-│   5-hour:   ░░░░░░░░░░░░░░   3%               │
-│   Weekly:   ░░░░░░░░░░░░░░   1%               │
-│   5-hour Resets: 2h 58m (9:09 PM)             │
-│   Weekly Resets: 6d 21h (15/04/26 9:09 PM)    │
-│   Credits: $0.00                              │
-╰───────────────────────────────────────────────╯
-```
+The dialog displays the full ASCII usage table for the selected provider scope.
 
 ## Authentication
 

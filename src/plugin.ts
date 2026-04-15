@@ -1,229 +1,83 @@
 /**
- * OpenCode Usage Tracker Plugin
- * 
- * Displays subscription usage for AI providers (Copilot and OpenAI)
- * directly in the OpenCode chat interface.
- * 
- * Commands:
- *   /usage          - Show all configured providers
- *   /usage copilot  - Show GitHub Copilot usage only
- *   /usage openai   - Show OpenAI/Codex usage only
+ * OpenCode Usage Tracker Plugin (server hooks)
+ *
+ * Handles /usage slash command and opens the TUI command dialog entry
+ * exposed by the companion TUI plugin.
  */
 
 import type { Hooks, PluginInput } from "@opencode-ai/plugin";
-import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
-import { 
-  formatUsageTable, 
-  formatNoProviders, 
-  formatError,
-  type UsageData 
-} from "./utils/format.ts";
-import { fetchCopilotUsage } from "./providers/copilot.ts";
-import { fetchOpenAIUsage } from "./providers/openai.ts";
+import {
+  USAGE_COMMAND_OPEN_ALL,
+  USAGE_COMMAND_OPEN_COPILOT,
+  USAGE_COMMAND_OPEN_OPENAI,
+  USAGE_COMMAND_OPEN_PICKER,
+} from "./constants.ts";
 
 const HANDLED_SENTINEL = "__USAGE_TRACKER_HANDLED__";
-
-type ProviderName = "copilot" | "openai" | "all";
-
-function parseProviderArg(text: string): ProviderName {
-  const lower = text.toLowerCase().trim();
+function parseUsageCommandTarget(args: string): string {
+  const lower = args.toLowerCase().trim();
   const [firstToken] = lower.split(/\s+/);
 
   switch (firstToken) {
     case "copilot":
     case "github":
-      return "copilot";
+      return USAGE_COMMAND_OPEN_COPILOT;
     case "openai":
     case "codex":
     case "chatgpt":
-      return "openai";
+      return USAGE_COMMAND_OPEN_OPENAI;
+    case "all":
+      return USAGE_COMMAND_OPEN_ALL;
     default:
-      break;
+      return USAGE_COMMAND_OPEN_PICKER;
   }
-
-  return "all";
 }
 
 function isUsageCommand(command: string): boolean {
   return command.replace(/^\//, "") === "usage";
 }
 
-function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
-  switch (provider) {
-    case "copilot":
-      return Boolean(tokens.copilot?.accessToken);
-    case "openai":
-      return Boolean(tokens.openai?.accessToken);
-    case "all":
-      return Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
-  }
-}
-
-async function fetchUsageData(
-  tokens: AuthTokens, 
-  provider: ProviderName
-): Promise<UsageData[]> {
-  const results: UsageData[] = [];
-  const fetchPromises: Array<{ name: string; request: Promise<UsageData> }> = [];
-  
-  // Copilot
-  if ((provider === "all" || provider === "copilot") && tokens.copilot?.accessToken) {
-    fetchPromises.push({
-      name: "GitHub Copilot",
-      request: fetchCopilotUsage(tokens.copilot.accessToken),
-    });
-  }
-  
-  // OpenAI
-  if ((provider === "all" || provider === "openai") && tokens.openai?.accessToken) {
-    fetchPromises.push({
-      name: "OpenAI/Codex",
-      request: fetchOpenAIUsage(tokens.openai.accessToken, tokens.openai.accountId),
-    });
-  }
-  
-  // Fetch all in parallel
-  const settled = await Promise.allSettled(fetchPromises.map((item) => item.request));
-
-  for (const [index, result] of settled.entries()) {
-    const providerInfo = fetchPromises[index];
-
-    if (!providerInfo) {
-      continue;
-    }
-
-    if (result.status === "fulfilled") {
-      results.push(result.value);
-      continue;
-    }
-
-    results.push({
-      provider: providerInfo.name,
-      windows: [],
-      error: result.reason instanceof Error ? result.reason.message : "Unknown error",
-    });
-  }
-  
-  // Sort results in consistent order: Copilot, OpenAI
-  const order = ["GitHub Copilot", "OpenAI/Codex"];
-  results.sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider));
-  
-  return results;
-}
-
 export async function UsageTrackerPlugin(
   { client }: PluginInput,
 ): Promise<Hooks> {
   return {
-    /**
-     * Register the /usage command
-     */
     config: async (input) => {
       input.command ??= {};
 
-      if (input.command["usage"]) {
-        return;
+      if (!input.command["usage"]) {
+        input.command["usage"] = {
+          template: "$ARGUMENTS",
+          description: "Open usage dashboard",
+        };
       }
-
-      input.command["usage"] = {
-        template: "$ARGUMENTS",
-        description: "Show AI provider usage",
-      };
     },
-    
-    /**
-     * Handle /usage command before normal command execution.
-     */
+
     "command.execute.before": async (input, output) => {
       if (!isUsageCommand(input.command)) {
         return;
       }
 
-      // Extract provider argument from slash command args
-      const args = input.arguments.trim();
-      const provider = parseProviderArg(args);
-      
-      // Show loading toast
-      await client.tui.showToast({
-        body: { message: "Fetching usage data...", variant: "info" },
-      });
-      
-      // Get auth tokens
-      let tokens: AuthTokens;
+      const command = parseUsageCommandTarget(input.arguments);
+
       try {
-        tokens = await getAuthTokens();
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Unknown error";
-        await injectResponse(client, input.sessionID, formatError(`Failed to read auth: ${errorMsg}`));
-        return stopCommandFlow(output);
-      }
-      
-      // Check if any providers are configured
-      const hasProviders = 
-        tokens.copilot?.accessToken || 
-        tokens.openai?.accessToken;
-      
-      if (!hasProviders) {
-        await injectResponse(client, input.sessionID, formatNoProviders());
-        return stopCommandFlow(output);
+        await client.tui.executeCommand({
+          body: { command },
+        });
+      } catch {
+        await client.tui.showToast({
+          body: {
+            title: "Usage Tracker",
+            message: "Usage dialog unavailable. Install/load the TUI plugin in tui.json or via `opencode plugin opencode-usage-tracker`.",
+            variant: "warning",
+          },
+        });
       }
 
-      if (!isProviderConfigured(tokens, provider)) {
-        await injectResponse(
-          client,
-          input.sessionID,
-          formatError(`Provider not configured: ${provider}`),
-        );
-        return stopCommandFlow(output);
-      }
-      
-      // Fetch usage data
-      const usageData = await fetchUsageData(tokens, provider);
-      
-      if (usageData.length === 0) {
-        await injectResponse(client, input.sessionID, formatNoProviders());
-        return stopCommandFlow(output);
-      }
-      
-      // Format and display results
-      const output_text = formatUsageTable(usageData);
-      await injectResponse(client, input.sessionID, output_text);
-
-      // Prevent default LLM command execution for /usage.
       return stopCommandFlow(output);
     },
   };
 }
 
-/**
- * Inject a response directly into the session (bypasses LLM)
- */
-async function injectResponse(
-  client: PluginInput["client"],
-  sessionID: string,
-  text: string
-): Promise<void> {
-  await client.session.prompt({
-    path: { id: sessionID },
-    body: {
-      noReply: true,
-      parts: [
-        {
-          type: "text",
-          text: text,
-          ignored: true,
-        },
-      ],
-    },
-  });
-}
-
-/**
- * Stop command flow after we handled /usage ourselves.
- *
- * Newer OpenCode runtimes support command hook noReply, older runtimes don't.
- * Fallback to the historical sentinel throw for backward compatibility.
- */
 function stopCommandFlow(output: { parts: unknown[] }): void {
   void output;
   throw new Error(HANDLED_SENTINEL);

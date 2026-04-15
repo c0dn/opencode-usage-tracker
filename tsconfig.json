@@ -9,8 +9,9 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "jsx": "preserve",
     "noEmit": true,
-    "types": ["bun-types"],
+    "types": ["bun-types", "@opentui/core", "@opentui/solid"],
 
     "strict": true,
     "skipLibCheck": true,
