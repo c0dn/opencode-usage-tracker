@@ -46,19 +46,17 @@ Open the usage dialog from either:
 - `/usage` in chat
 - Command palette (`Ctrl+P`) -> `Usage`
 
-You can select all providers or a specific provider from the picker dialog.
+Both entry points open the provider picker dialog.
 
-Supported slash variants:
+Supported slash command:
 
 ```
-/usage          # Show all providers
-/usage copilot  # Show GitHub Copilot only
-/usage openai   # Show OpenAI/Codex only
+/usage          # Open provider picker
 ```
 
 ### Example Output
 
-The dialog displays the full ASCII usage table for the selected provider scope.
+The dialog displays a native TUI usage view for the selected provider scope.
 
 ## Authentication
 

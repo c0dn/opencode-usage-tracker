@@ -6,39 +6,12 @@
  */
 
 import type { Hooks, PluginInput } from "@opencode-ai/plugin";
-import {
-  USAGE_COMMAND_OPEN_ALL,
-  USAGE_COMMAND_OPEN_COPILOT,
-  USAGE_COMMAND_OPEN_OPENAI,
-  USAGE_COMMAND_OPEN_PICKER,
-} from "./constants.ts";
+import { USAGE_COMMAND_OPEN_PICKER } from "./constants.ts";
 
 const HANDLED_SENTINEL = "__USAGE_TRACKER_HANDLED__";
-function parseUsageCommandTarget(args: string): string {
-  const lower = args.toLowerCase().trim();
-  const [firstToken] = lower.split(/\s+/);
-
-  switch (firstToken) {
-    case "copilot":
-    case "github":
-      return USAGE_COMMAND_OPEN_COPILOT;
-    case "openai":
-    case "codex":
-    case "chatgpt":
-      return USAGE_COMMAND_OPEN_OPENAI;
-    case "all":
-      return USAGE_COMMAND_OPEN_ALL;
-    default:
-      return USAGE_COMMAND_OPEN_ALL;
-  }
-}
 
 function isUsageCommand(command: string): boolean {
   return command.replace(/^\//, "") === "usage";
-}
-
-function hasProviderArgs(args: string): boolean {
-  return args.trim().length > 0;
 }
 
 export async function UsageTrackerPlugin(
@@ -50,7 +23,7 @@ export async function UsageTrackerPlugin(
 
       if (!input.command["usage"]) {
         input.command["usage"] = {
-          template: "$ARGUMENTS",
+          template: "",
           description: "Open Usage",
         };
       }
@@ -61,17 +34,20 @@ export async function UsageTrackerPlugin(
         return;
       }
 
-      // Bare /usage is handled by the TUI slash command directly.
-      if (!hasProviderArgs(input.arguments)) {
-        return;
-      }
-
-      const command = parseUsageCommandTarget(input.arguments);
-
       try {
-        await client.tui.executeCommand({
-          body: { command },
+        const result = await client.tui.executeCommand({
+          body: { command: USAGE_COMMAND_OPEN_PICKER },
         });
+
+        if (result.error || result.data !== true) {
+          await client.tui.showToast({
+            body: {
+              title: "Usage",
+              message: "Usage dialog command was not accepted by the TUI.",
+              variant: "warning",
+            },
+          });
+        }
       } catch {
         await client.tui.showToast({
           body: {

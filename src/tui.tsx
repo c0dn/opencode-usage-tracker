@@ -4,6 +4,7 @@ import { useTerminalDimensions } from "@opentui/solid";
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { createEffect, For, Show } from "solid-js";
 import {
+  USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
   USAGE_COMMAND_OPEN_ALL,
   USAGE_COMMAND_OPEN_COPILOT,
@@ -246,11 +247,11 @@ const tui: TuiPlugin = async (api) => {
   api.command.register(() => [
     {
       title: "Usage",
-      value: USAGE_COMMAND_OPEN_PICKER,
+      value: USAGE_COMMAND_SHOW,
       category: "Plugin",
       slash: { name: "usage" },
       onSelect: () => {
-        void openUsage(api, "all");
+        openPicker(api);
       },
     },
     {
@@ -260,6 +261,15 @@ const tui: TuiPlugin = async (api) => {
       hidden: true,
       onSelect: () => {
         void openUsage(api, "all");
+      },
+    },
+    {
+      title: "Usage Select",
+      value: USAGE_COMMAND_OPEN_PICKER,
+      category: "Plugin",
+      hidden: true,
+      onSelect: () => {
+        openPicker(api);
       },
     },
     {
