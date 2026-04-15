@@ -18,17 +18,6 @@ export async function UsageTrackerPlugin(
   { client }: PluginInput,
 ): Promise<Hooks> {
   return {
-    config: async (input) => {
-      input.command ??= {};
-
-      if (!input.command["usage"]) {
-        input.command["usage"] = {
-          template: "",
-          description: "Open Usage",
-        };
-      }
-    },
-
     "command.execute.before": async (input, output) => {
       if (!isUsageCommand(input.command)) {
         return;

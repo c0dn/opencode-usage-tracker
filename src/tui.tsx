@@ -79,8 +79,10 @@ function UsageBar(props: { api: TuiPluginApi; window: UsageWindow }) {
       <text fg={props.api.theme.current.text} width={10}>
         {props.window.label}
       </text>
-      <text fg={color}>{"█".repeat(filled)}</text>
-      <text fg={props.api.theme.current.border}>{"░".repeat(empty)}</text>
+      <box flexDirection="row" gap={0}>
+        <text fg={color}>{"█".repeat(filled)}</text>
+        <text fg={props.api.theme.current.border}>{"░".repeat(empty)}</text>
+      </box>
       <text fg={color} attributes={TextAttributes.BOLD}>
         {`${Math.round(props.window.usedPercent)}%`}
       </text>
