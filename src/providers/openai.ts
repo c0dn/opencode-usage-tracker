@@ -235,12 +235,9 @@ function buildCreditsExtra(credits?: CodexUsageResponse["credits"]): Record<stri
   const extra: Record<string, string> = {};
 
   if (credits.unlimited) {
-    extra["Credits"] = "Unlimited";
-  } else if (credits.balance) {
-    const balance = parseFloat(credits.balance);
-    if (!Number.isNaN(balance)) {
-      extra["Credits"] = `$${balance.toFixed(2)}`;
-    }
+    extra["Credits remaining"] = "Unlimited";
+  } else if (typeof credits.balance === "string") {
+    extra["Credits remaining"] = credits.balance;
   }
 
   return Object.keys(extra).length > 0 ? extra : undefined;
@@ -257,7 +254,7 @@ function pushUniqueCard(results: UsageData[], seenProviders: Set<string>, card: 
 
 function getAdditionalLimitProviderName(limit: AdditionalRateLimit): string {
   const rawName = limit.limit_name || limit.metered_feature || "additional_limit";
-  return `${OPENAI_PROVIDER_NAME} - ${humanizeLabel(rawName)}`;
+  return `${OPENAI_PROVIDER_NAME} - ${humanizeAdditionalLimitName(rawName)}`;
 }
 
 function getWindowLabel(key: string, window: RateLimitWindow): string {
@@ -320,6 +317,26 @@ function humanizeLabel(value: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function humanizeAdditionalLimitName(value: string): string {
+  const normalized = value.trim();
+
+  if (/[\s_-]spark$/i.test(normalized) || /^gpt[-_.]?\d/i.test(normalized)) {
+    return normalized
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => {
+        if (/^gpt$/i.test(part)) return "GPT";
+        if (/^codex$/i.test(part)) return "Codex";
+        if (/^spark$/i.test(part)) return "Spark";
+        if (/^[0-9]+(?:\.[0-9]+)*$/.test(part)) return part;
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .join(" ");
+  }
+
+  return humanizeLabel(normalized);
 }
 
 function isRateLimitWindow(value: unknown): value is RateLimitWindow {
