@@ -1,8 +1,14 @@
 import { fetchCopilotUsage } from "./providers/copilot.ts";
 import { fetchOpenAIUsage } from "./providers/openai.ts";
+import { fetchMinimaxUsage } from "./providers/minimax.ts";
 import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
 import { type UsageData } from "./utils/format.ts";
-import type { ProviderName } from "./constants.ts";
+import {
+  PROVIDER_METADATA,
+  PROVIDER_ORDER,
+  type ConcreteProviderName,
+  type ProviderName,
+} from "./constants.ts";
 
 export type UsageResult =
   | { kind: "ok"; provider: ProviderName; providers: UsageData[] }
@@ -12,7 +18,7 @@ export type UsageResult =
 export async function fetchUsageResult(provider: ProviderName): Promise<UsageResult> {
   const tokens = await getAuthTokens();
 
-  const hasProviders = Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
+  const hasProviders = getProviderFetchers(tokens).length > 0;
   if (!hasProviders) {
     return {
       kind: "empty",
@@ -47,47 +53,31 @@ export async function fetchUsageResult(provider: ProviderName): Promise<UsageRes
 }
 
 function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
-  switch (provider) {
-    case "copilot":
-      return Boolean(tokens.copilot?.accessToken);
-    case "openai":
-      return Boolean(tokens.openai?.accessToken);
-    case "all":
-      return Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
+  if (provider === "all") {
+    return getProviderFetchers(tokens).length > 0;
   }
+
+  return getProviderFetchers(tokens).some((fetcher) => fetcher.provider === provider);
 }
 
 async function fetchUsageData(
   tokens: AuthTokens,
   provider: ProviderName,
 ): Promise<UsageData[]> {
+  const fetchers = getProviderFetchers(tokens).filter(
+    (fetcher) => provider === "all" || fetcher.provider === provider,
+  );
   const results: UsageData[] = [];
-  const fetchPromises: Array<{ name: string; request: Promise<UsageData> }> = [];
-
-  if ((provider === "all" || provider === "copilot") && tokens.copilot?.accessToken) {
-    fetchPromises.push({
-      name: "GitHub Copilot",
-      request: fetchCopilotUsage(tokens.copilot.accessToken),
-    });
-  }
-
-  if ((provider === "all" || provider === "openai") && tokens.openai?.accessToken) {
-    fetchPromises.push({
-      name: "OpenAI/Codex",
-      request: fetchOpenAIUsage(tokens.openai.accessToken, tokens.openai.accountId),
-    });
-  }
-
-  const settled = await Promise.allSettled(fetchPromises.map((item) => item.request));
+  const settled = await Promise.allSettled(fetchers.map((fetcher) => fetcher.request()));
 
   for (const [index, result] of settled.entries()) {
-    const providerInfo = fetchPromises[index];
+    const providerInfo = fetchers[index];
     if (!providerInfo) {
       continue;
     }
 
     if (result.status === "fulfilled") {
-      results.push(result.value);
+      results.push(...result.value);
       continue;
     }
 
@@ -98,8 +88,47 @@ async function fetchUsageData(
     });
   }
 
-  const order = ["OpenAI/Codex", "GitHub Copilot"];
-  results.sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider));
-
   return results;
+}
+
+type ProviderFetcher = {
+  provider: ConcreteProviderName;
+  name: string;
+  request: () => Promise<UsageData[]>;
+};
+
+function getProviderFetchers(tokens: AuthTokens): ProviderFetcher[] {
+  const openAIAuth = tokens.openai;
+  const copilotAccessToken = tokens.copilot?.accessToken;
+  const minimaxKey = tokens.minimax?.key;
+
+  const fetchers: Partial<Record<ConcreteProviderName, ProviderFetcher>> = {
+    openai: openAIAuth
+      ? {
+          provider: "openai",
+          name: PROVIDER_METADATA.openai.label,
+          request: () =>
+            fetchOpenAIUsage(openAIAuth.accessToken, openAIAuth.accountId).then((usage) => [usage]),
+        }
+      : undefined,
+    copilot: copilotAccessToken
+      ? {
+          provider: "copilot",
+          name: PROVIDER_METADATA.copilot.label,
+          request: () => fetchCopilotUsage(copilotAccessToken).then((usage) => [usage]),
+        }
+      : undefined,
+    minimax: minimaxKey
+      ? {
+          provider: "minimax",
+          name: PROVIDER_METADATA.minimax.label,
+          request: () => fetchMinimaxUsage(minimaxKey, tokens.minimax?.groupId).then((usage) => [usage]),
+        }
+      : undefined,
+  };
+
+  return PROVIDER_ORDER.flatMap((provider) => {
+    const fetcher = fetchers[provider];
+    return fetcher ? [fetcher] : [];
+  });
 }

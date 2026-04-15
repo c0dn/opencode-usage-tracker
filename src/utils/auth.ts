@@ -14,6 +14,10 @@ export interface AuthTokens {
     accessToken: string;
     accountId?: string;
   };
+  minimax?: {
+    key: string;
+    groupId?: string;
+  };
 }
 
 interface AuthJsonProvider {
@@ -23,6 +27,8 @@ interface AuthJsonProvider {
   accountId?: string;
   accessToken?: string;
   token?: string;
+  groupId?: string;
+  group_id?: string;
 }
 
 interface AuthJson {
@@ -97,6 +103,18 @@ export async function getAuthTokens(): Promise<AuthTokens> {
       tokens.openai = {
         accessToken,
         accountId: openai.accountId,
+      };
+    }
+  }
+
+  // MiniMax coding plan
+  const minimax = authJson["minimax-coding-plan"] || authJson["minimax"];
+  if (minimax) {
+    const key = minimax.key || minimax.access || minimax.accessToken || minimax.token;
+    if (key) {
+      tokens.minimax = {
+        key,
+        groupId: minimax.groupId || minimax.group_id,
       };
     }
   }

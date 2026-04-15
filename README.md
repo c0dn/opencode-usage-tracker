@@ -8,6 +8,7 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
 | OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
+| MiniMax Coding Plan *(experimental)* | API key (`minimax-coding-plan.key`) | coding plan quota windows from `model_remains` |
 
 ## Installation
 
@@ -65,6 +66,8 @@ The plugin reads authentication tokens from OpenCode's `auth.json` file located 
 - macOS: `~/Library/Application Support/opencode/auth.json`
 
 Tokens are automatically populated when you authenticate with providers in OpenCode.
+
+MiniMax support is experimental and uses the `minimax-coding-plan.key` field in `auth.json` when present.
 
 ## Notes
 
