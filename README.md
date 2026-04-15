@@ -7,7 +7,8 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 | Provider | Auth Type | Usage Data |
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
-| OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
+| OpenAI/Codex | ChatGPT login or API key | ChatGPT login: 5-hour & weekly limits, credits; API key: informational only |
+| MiniMax Coding Plan *(experimental)* | API key (`minimax-coding-plan.key`) | coding plan quota windows from `model_remains` |
 
 ## Installation
 
@@ -65,6 +66,13 @@ The plugin reads authentication tokens from OpenCode's `auth.json` file located 
 - macOS: `~/Library/Application Support/opencode/auth.json`
 
 Tokens are automatically populated when you authenticate with providers in OpenCode.
+
+MiniMax support is experimental and uses the `minimax-coding-plan.key` field in `auth.json` when present.
+
+### OpenAI/Codex auth modes
+
+- **ChatGPT login**: the plugin reads the ChatGPT access token from `auth.json` and fetches Codex usage from `https://chatgpt.com/backend-api/wham/usage`
+- **API key**: the plugin detects manual OpenAI API-key auth and shows an informational card instead of a quota percentage, because the ChatGPT subscription usage endpoint does not apply in API-key mode
 
 ## Notes
 

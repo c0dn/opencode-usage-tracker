@@ -4,11 +4,13 @@ import { useTerminalDimensions } from "@opentui/solid";
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { createEffect, For, Show } from "solid-js";
 import {
+  PROVIDER_COMMANDS,
+  PROVIDER_OPTIONS,
+  PROVIDER_LABELS,
+  getProviderLabel,
   USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
   USAGE_COMMAND_OPEN_ALL,
-  USAGE_COMMAND_OPEN_COPILOT,
-  USAGE_COMMAND_OPEN_OPENAI,
   type ProviderName,
 } from "./constants.ts";
 import { fetchUsageResult, type UsageResult } from "./usage.ts";
@@ -17,27 +19,7 @@ import type { UsageData, UsageWindow } from "./utils/format.ts";
 const PLUGIN_ID = "opencode-usage-tracker";
 const BAR_WIDTH = 24;
 
-type UsageOption = {
-  title: string;
-  value: ProviderName;
-};
-
-const PROVIDER_OPTIONS: UsageOption[] = [
-  { title: "All Providers", value: "all" },
-  { title: "GitHub Copilot", value: "copilot" },
-  { title: "OpenAI/Codex", value: "openai" },
-];
-
-function getProviderLabel(provider: ProviderName): string {
-  switch (provider) {
-    case "all":
-      return "All Providers";
-    case "copilot":
-      return "GitHub Copilot";
-    case "openai":
-      return "OpenAI/Codex";
-  }
-}
+const PICKER_OPTIONS = [{ title: PROVIDER_LABELS.all, value: "all" as const }, ...PROVIDER_OPTIONS];
 
 function usageColor(api: TuiPluginApi, percent: number) {
   if (percent >= 90) return api.theme.current.error;
@@ -214,15 +196,15 @@ function openResultDialog(api: TuiPluginApi, result: UsageResult): void {
 function openPicker(api: TuiPluginApi): void {
   const DialogSelect = api.ui.DialogSelect;
   api.ui.dialog.replace(() => (
-    <DialogSelect
-      title="Usage"
-      placeholder="Choose provider"
-      options={PROVIDER_OPTIONS}
-      onSelect={(option) => {
-        api.ui.dialog.clear();
-        void openUsage(api, option.value as ProviderName);
-      }}
-    />
+      <DialogSelect
+        title="Usage"
+        placeholder="Choose provider"
+        options={PICKER_OPTIONS}
+        onSelect={(option) => {
+          api.ui.dialog.clear();
+          void openUsage(api, option.value as ProviderName);
+        }}
+      />
   ));
 }
 
@@ -274,24 +256,15 @@ const tui: TuiPlugin = async (api) => {
         openPicker(api);
       },
     },
-    {
-      title: "Usage Copilot",
-      value: USAGE_COMMAND_OPEN_COPILOT,
-      category: "Plugin",
+    ...PROVIDER_COMMANDS.map(({ provider, title, value }) => ({
+      title,
+      value,
+      category: "Plugin" as const,
       hidden: true,
       onSelect: () => {
-        void openUsage(api, "copilot");
+        void openUsage(api, provider);
       },
-    },
-    {
-      title: "Usage OpenAI",
-      value: USAGE_COMMAND_OPEN_OPENAI,
-      category: "Plugin",
-      hidden: true,
-      onSelect: () => {
-        void openUsage(api, "openai");
-      },
-    },
+    })),
   ]);
 };
 
