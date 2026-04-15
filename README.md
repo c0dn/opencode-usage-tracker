@@ -44,7 +44,7 @@ The TUI dialog will not load if the package is only present in `opencode.json`.
 Open the usage dialog from either:
 
 - `/usage` in chat
-- Command palette (`Ctrl+P`) -> `Usage Dashboard`
+- Command palette (`Ctrl+P`) -> `Usage`
 
 You can select all providers or a specific provider from the picker dialog.
 

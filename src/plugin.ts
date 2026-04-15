@@ -29,12 +29,16 @@ function parseUsageCommandTarget(args: string): string {
     case "all":
       return USAGE_COMMAND_OPEN_ALL;
     default:
-      return USAGE_COMMAND_OPEN_PICKER;
+      return USAGE_COMMAND_OPEN_ALL;
   }
 }
 
 function isUsageCommand(command: string): boolean {
   return command.replace(/^\//, "") === "usage";
+}
+
+function hasProviderArgs(args: string): boolean {
+  return args.trim().length > 0;
 }
 
 export async function UsageTrackerPlugin(
@@ -47,13 +51,18 @@ export async function UsageTrackerPlugin(
       if (!input.command["usage"]) {
         input.command["usage"] = {
           template: "$ARGUMENTS",
-          description: "Open usage dashboard",
+          description: "Open Usage",
         };
       }
     },
 
     "command.execute.before": async (input, output) => {
       if (!isUsageCommand(input.command)) {
+        return;
+      }
+
+      // Bare /usage is handled by the TUI slash command directly.
+      if (!hasProviderArgs(input.arguments)) {
         return;
       }
 
@@ -66,7 +75,7 @@ export async function UsageTrackerPlugin(
       } catch {
         await client.tui.showToast({
           body: {
-            title: "Usage Tracker",
+            title: "Usage",
             message: "Usage dialog unavailable. Install/load the TUI plugin in tui.json or via `opencode plugin opencode-usage-tracker`.",
             variant: "warning",
           },

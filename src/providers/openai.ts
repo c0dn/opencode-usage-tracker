@@ -142,7 +142,7 @@ export async function fetchOpenAIUsage(
       windows.push({
         label: getWindowLabel("primary_window", primaryWindow),
         usedPercent: primaryWindow.used_percent,
-        resetTime: resetDate ? formatRelativeTime(resetDate, { includeDate: false }) : undefined,
+        resetTime: resetDate ? formatRelativeTime(resetDate) : undefined,
       });
     }
     

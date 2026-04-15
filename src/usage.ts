@@ -1,33 +1,49 @@
 import { fetchCopilotUsage } from "./providers/copilot.ts";
 import { fetchOpenAIUsage } from "./providers/openai.ts";
 import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
-import {
-  formatError,
-  formatNoProviders,
-  formatUsageTable,
-  type UsageData,
-} from "./utils/format.ts";
+import { type UsageData } from "./utils/format.ts";
 import type { ProviderName } from "./constants.ts";
 
-export async function buildUsageTable(provider: ProviderName): Promise<string> {
+export type UsageResult =
+  | { kind: "ok"; provider: ProviderName; providers: UsageData[] }
+  | { kind: "empty"; provider: ProviderName; message: string }
+  | { kind: "error"; provider: ProviderName; message: string };
+
+export async function fetchUsageResult(provider: ProviderName): Promise<UsageResult> {
   const tokens = await getAuthTokens();
 
   const hasProviders = Boolean(tokens.copilot?.accessToken || tokens.openai?.accessToken);
   if (!hasProviders) {
-    return formatNoProviders();
+    return {
+      kind: "empty",
+      provider,
+      message: "No providers configured. Add tokens to auth.json first.",
+    };
   }
 
   if (!isProviderConfigured(tokens, provider)) {
-    return formatError(`Provider not configured: ${provider}`);
+    return {
+      kind: "error",
+      provider,
+      message: `Provider not configured: ${provider}`,
+    };
   }
 
   const usageData = await fetchUsageData(tokens, provider);
 
   if (usageData.length === 0) {
-    return formatNoProviders();
+    return {
+      kind: "empty",
+      provider,
+      message: "No usage data available.",
+    };
   }
 
-  return formatUsageTable(usageData);
+  return {
+    kind: "ok",
+    provider,
+    providers: usageData,
+  };
 }
 
 function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
@@ -82,7 +98,7 @@ async function fetchUsageData(
     });
   }
 
-  const order = ["GitHub Copilot", "OpenAI/Codex"];
+  const order = ["OpenAI/Codex", "GitHub Copilot"];
   results.sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider));
 
   return results;

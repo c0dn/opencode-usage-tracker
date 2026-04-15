@@ -1,5 +1,8 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui";
+import { RGBA, TextAttributes } from "@opentui/core";
+import { useTerminalDimensions } from "@opentui/solid";
+import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
+import { createEffect, For, Show } from "solid-js";
 import {
   USAGE_COMMAND_OPEN_PICKER,
   USAGE_COMMAND_OPEN_ALL,
@@ -7,20 +10,21 @@ import {
   USAGE_COMMAND_OPEN_OPENAI,
   type ProviderName,
 } from "./constants.ts";
-import { buildUsageTable } from "./usage.ts";
+import { fetchUsageResult, type UsageResult } from "./usage.ts";
+import type { UsageData, UsageWindow } from "./utils/format.ts";
 
 const PLUGIN_ID = "opencode-usage-tracker";
+const BAR_WIDTH = 24;
 
 type UsageOption = {
   title: string;
   value: ProviderName;
-  description: string;
 };
 
 const PROVIDER_OPTIONS: UsageOption[] = [
-  { title: "All Providers", value: "all", description: "Copilot and OpenAI summary" },
-  { title: "GitHub Copilot", value: "copilot", description: "Copilot quota and reset windows" },
-  { title: "OpenAI/Codex", value: "openai", description: "OpenAI usage windows and credits" },
+  { title: "All Providers", value: "all" },
+  { title: "GitHub Copilot", value: "copilot" },
+  { title: "OpenAI/Codex", value: "openai" },
 ];
 
 function getProviderLabel(provider: ProviderName): string {
@@ -34,89 +38,246 @@ function getProviderLabel(provider: ProviderName): string {
   }
 }
 
-function openResultDialog(
-  api: Parameters<TuiPlugin>[0],
-  title: string,
-  message: string,
-): void {
-  const DialogAlert = api.ui.DialogAlert;
-  api.ui.dialog.setSize("xlarge");
-  api.ui.dialog.replace(() => <DialogAlert title={title} message={message} />);
+function usageColor(api: TuiPluginApi, percent: number) {
+  if (percent >= 90) return api.theme.current.error;
+  if (percent >= 75) return api.theme.current.warning;
+  return api.theme.current.primary;
 }
 
-function openProviderPicker(api: Parameters<TuiPlugin>[0]): void {
+function metaRows(provider: UsageData): Array<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [];
+
+  for (const window of provider.windows) {
+    if (window.resetTime) {
+      rows.push({ label: `${window.label} resets`, value: window.resetTime });
+    }
+  }
+
+  for (const [label, value] of Object.entries(provider.extra ?? {})) {
+    rows.push({ label, value });
+  }
+
+  return rows;
+}
+
+function isOkResult(result: UsageResult): result is Extract<UsageResult, { kind: "ok" }> {
+  return result.kind === "ok";
+}
+
+function isMessageResult(result: UsageResult): result is Extract<UsageResult, { message: string }> {
+  return result.kind !== "ok";
+}
+
+function UsageBar(props: { api: TuiPluginApi; window: UsageWindow }) {
+  const filled = Math.max(0, Math.min(BAR_WIDTH, Math.round((props.window.usedPercent / 100) * BAR_WIDTH)));
+  const empty = BAR_WIDTH - filled;
+  const color = usageColor(props.api, props.window.usedPercent);
+
+  return (
+    <box flexDirection="row" alignItems="center" gap={1}>
+      <text fg={props.api.theme.current.text} width={10}>
+        {props.window.label}
+      </text>
+      <text fg={color}>{"█".repeat(filled)}</text>
+      <text fg={props.api.theme.current.border}>{"░".repeat(empty)}</text>
+      <text fg={color} attributes={TextAttributes.BOLD}>
+        {`${Math.round(props.window.usedPercent)}%`}
+      </text>
+    </box>
+  );
+}
+
+function ProviderCard(props: { api: TuiPluginApi; provider: UsageData }) {
+  const theme = props.api.theme.current;
+  const rows = metaRows(props.provider);
+  const lastWindowIndex = props.provider.windows.length - 1;
+
+  return (
+    <box
+      flexDirection="column"
+      gap={0}
+      paddingLeft={2}
+      paddingRight={2}
+      paddingTop={1}
+      paddingBottom={1}
+      backgroundColor={theme.background}
+      borderColor={theme.border}
+      borderStyle="rounded"
+    >
+      <box flexDirection="row" justifyContent="space-between" paddingBottom={1}>
+        <text fg={theme.text} attributes={TextAttributes.BOLD}>
+          {props.provider.provider}
+        </text>
+        <Show when={props.provider.planType}>
+          <text fg={theme.textMuted}>{props.provider.planType}</text>
+        </Show>
+      </box>
+
+      <Show
+        when={!props.provider.error}
+        fallback={<text fg={theme.error}>{props.provider.error}</text>}
+      >
+        <box flexDirection="column" gap={0}>
+          <For each={props.provider.windows}>
+            {(window, index) => (
+              <box paddingBottom={index() === lastWindowIndex ? 1 : 1}>
+                <UsageBar api={props.api} window={window} />
+              </box>
+            )}
+          </For>
+          <Show when={rows.length > 0}>
+            <box flexDirection="column" gap={0}>
+              <For each={rows}>
+                {(row) => (
+                  <box flexDirection="row" justifyContent="space-between" gap={2}>
+                    <text fg={theme.textMuted}>{row.label}</text>
+                    <text fg={theme.text}>{row.value}</text>
+                  </box>
+                )}
+              </For>
+            </box>
+          </Show>
+          <Show when={props.provider.windows.length === 0 && rows.length === 0}>
+            <text fg={theme.textMuted}>No usage windows reported.</text>
+          </Show>
+        </box>
+      </Show>
+    </box>
+  );
+}
+
+function UsageDialog(props: { api: TuiPluginApi; result: UsageResult }) {
+  const dimensions = useTerminalDimensions();
+  const theme = props.api.theme.current;
+  const okResult = () => (isOkResult(props.result) ? props.result : undefined);
+  const messageResult = () => (isMessageResult(props.result) ? props.result : undefined);
+
+  createEffect(() => {
+    const width = dimensions().width;
+    if (width >= 128) {
+      props.api.ui.dialog.setSize("xlarge");
+      return;
+    }
+    if (width >= 96) {
+      props.api.ui.dialog.setSize("large");
+      return;
+    }
+    props.api.ui.dialog.setSize("medium");
+  });
+
+  return (
+    <box gap={0} paddingBottom={1}>
+      <box paddingLeft={4} paddingRight={4} paddingBottom={1}>
+        <box flexDirection="row" justifyContent="space-between">
+          <box flexDirection="row" gap={1}>
+            <text fg={theme.text} attributes={TextAttributes.BOLD}>
+              Usage Tracker
+            </text>
+            <text fg={theme.textMuted}>{getProviderLabel(props.result.provider)}</text>
+          </box>
+          <text fg={theme.textMuted} onMouseUp={() => props.api.ui.dialog.clear()}>
+            esc
+          </text>
+        </box>
+      </box>
+
+      <scrollbox paddingLeft={4} paddingRight={4} maxHeight={Math.max(12, Math.floor(dimensions().height * 0.58))}>
+        <Show when={okResult()}>
+          <box flexDirection="column" gap={0}>
+            <For each={okResult()?.providers ?? []}>{(provider) => <ProviderCard api={props.api} provider={provider} />}</For>
+          </box>
+        </Show>
+        <Show when={messageResult()}>
+          <box
+            padding={1}
+            backgroundColor={RGBA.fromInts(0, 0, 0, 0)}
+            borderColor={theme.border}
+            borderStyle="rounded"
+          >
+            <text fg={messageResult()?.kind === "error" ? theme.error : theme.textMuted}>
+              {messageResult()?.message ?? ""}
+            </text>
+          </box>
+        </Show>
+      </scrollbox>
+    </box>
+  );
+}
+
+function openResultDialog(api: TuiPluginApi, result: UsageResult): void {
+  api.ui.dialog.replace(() => <UsageDialog api={api} result={result} />);
+}
+
+function openPicker(api: TuiPluginApi): void {
   const DialogSelect = api.ui.DialogSelect;
-  api.ui.dialog.setSize("large");
   api.ui.dialog.replace(() => (
     <DialogSelect
-      title="Usage Dashboard"
+      title="Usage"
       placeholder="Choose provider"
       options={PROVIDER_OPTIONS}
       onSelect={(option) => {
         api.ui.dialog.clear();
-        void openUsageDialog(api, option.value as ProviderName);
+        void openUsage(api, option.value as ProviderName);
       }}
     />
   ));
 }
 
-async function openUsageDialog(
-  api: Parameters<TuiPlugin>[0],
-  provider: ProviderName,
-): Promise<void> {
+async function openUsage(api: TuiPluginApi, provider: ProviderName): Promise<void> {
   api.ui.toast({
-    title: "Usage Tracker",
     message: "Fetching usage data...",
     variant: "info",
     duration: 2000,
   });
 
   try {
-    const table = await buildUsageTable(provider);
-    const label = getProviderLabel(provider);
-    const title = provider === "all" ? "Usage Dashboard" : `Usage Dashboard - ${label}`;
-    openResultDialog(api, title, table);
+    const result = await fetchUsageResult(provider);
+    openResultDialog(api, result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    openResultDialog(api, "Usage Dashboard - Error", message);
+    openResultDialog(api, {
+      kind: "error",
+      provider,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
 
 const tui: TuiPlugin = async (api) => {
   api.command.register(() => [
     {
-      title: "Usage Dashboard",
+      title: "Usage",
       value: USAGE_COMMAND_OPEN_PICKER,
       category: "Plugin",
+      slash: { name: "usage" },
       onSelect: () => {
-        openProviderPicker(api);
+        void openUsage(api, "all");
       },
     },
     {
-      title: "Usage Dashboard (All)",
+      title: "Usage",
       value: USAGE_COMMAND_OPEN_ALL,
       category: "Plugin",
       hidden: true,
       onSelect: () => {
-        void openUsageDialog(api, "all");
+        void openUsage(api, "all");
       },
     },
     {
-      title: "Usage Dashboard (Copilot)",
+      title: "Usage Copilot",
       value: USAGE_COMMAND_OPEN_COPILOT,
       category: "Plugin",
       hidden: true,
       onSelect: () => {
-        void openUsageDialog(api, "copilot");
+        void openUsage(api, "copilot");
       },
     },
     {
-      title: "Usage Dashboard (OpenAI)",
+      title: "Usage OpenAI",
       value: USAGE_COMMAND_OPEN_OPENAI,
       category: "Plugin",
       hidden: true,
       onSelect: () => {
-        void openUsageDialog(api, "openai");
+        void openUsage(api, "openai");
       },
     },
   ]);
