@@ -181,7 +181,7 @@ function UsageDialog(props: { api: TuiPluginApi; result: UsageResult }) {
         </box>
       </box>
 
-      <scrollbox paddingLeft={4} paddingRight={4} maxHeight={Math.max(12, Math.floor(dimensions().height * 0.58))}>
+      <scrollbox paddingLeft={4} paddingRight={4} maxHeight={Math.max(12, Math.floor(dimensions().height * 0.49))}>
         <Show when={okResult()}>
           <box flexDirection="column" gap={0}>
             <For each={okResult()?.providers ?? []}>{(provider) => <ProviderCard api={props.api} provider={provider} />}</For>
