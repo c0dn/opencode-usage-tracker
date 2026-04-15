@@ -8,6 +8,7 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
 | OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
+| Z.AI | API key | Token quotas + web search usage |
 
 ## Installation
 
@@ -70,6 +71,24 @@ Tokens are automatically populated when you authenticate with providers in OpenC
 
 - **Read-only**: This plugin only fetches usage data - it does not consume any quota
 - **Fresh Data**: Usage data is fetched fresh on each command (no caching)
+
+### Z.AI auth config
+
+If your OpenCode `auth.json` includes one of these keys, the plugin will automatically use it:
+
+- `zai`
+- `z-ai`
+
+Optional host override can be provided under any of these fields:
+
+- `baseHost`
+- `baseDomain`
+- `host`
+- `apiHost`
+- `baseUrl`
+- `endpoint`
+
+If omitted, the default host is `https://api.z.ai`.
 
 ## License
 

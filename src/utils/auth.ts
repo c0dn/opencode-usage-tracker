@@ -14,6 +14,10 @@ export interface AuthTokens {
     accessToken: string;
     accountId?: string;
   };
+  zai?: {
+    accessToken: string;
+    baseHost?: string;
+  };
 }
 
 interface AuthJsonProvider {
@@ -23,6 +27,12 @@ interface AuthJsonProvider {
   accountId?: string;
   accessToken?: string;
   token?: string;
+  host?: string;
+  baseHost?: string;
+  baseDomain?: string;
+  apiHost?: string;
+  baseUrl?: string;
+  endpoint?: string;
 }
 
 interface AuthJson {
@@ -68,6 +78,26 @@ async function readAuthJson(): Promise<AuthJson | null> {
   return null;
 }
 
+function pickZaiHost(provider: AuthJsonProvider): string | undefined {
+  const candidate = provider.baseHost || provider.baseDomain || provider.apiHost || provider.host || provider.baseUrl || provider.endpoint;
+
+  if (!candidate) {
+    return undefined;
+  }
+
+  const trimmed = candidate.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return undefined;
+  }
+
+  try {
+    const url = /^https?:\/\//i.test(trimmed) ? new URL(trimmed) : new URL(`https://${trimmed}`);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Get authentication tokens for all supported providers
  */
@@ -100,6 +130,18 @@ export async function getAuthTokens(): Promise<AuthTokens> {
       };
     }
   }
-  
+
+  // Z.AI / GLM Coding Plan
+  const zai = authJson["zai"] || authJson["z-ai"];
+  if (zai) {
+    const accessToken = zai.access || zai.accessToken || zai.key || zai.token;
+    if (accessToken) {
+      tokens.zai = {
+        accessToken,
+        baseHost: pickZaiHost(zai),
+      };
+    }
+  }
+
   return tokens;
 }

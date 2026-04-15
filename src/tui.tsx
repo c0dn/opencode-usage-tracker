@@ -6,10 +6,11 @@ import { createEffect, For, Show } from "solid-js";
 import {
   USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
-  USAGE_COMMAND_OPEN_ALL,
-  USAGE_COMMAND_OPEN_COPILOT,
-  USAGE_COMMAND_OPEN_OPENAI,
+  PROVIDER_OPTIONS,
+  PROVIDER_METADATA,
+  getProviderLabel,
   type ProviderName,
+  type ProviderMetadata,
 } from "./constants.ts";
 import { fetchUsageResult, type UsageResult } from "./usage.ts";
 import type { UsageData, UsageWindow } from "./utils/format.ts";
@@ -17,27 +18,7 @@ import type { UsageData, UsageWindow } from "./utils/format.ts";
 const PLUGIN_ID = "opencode-usage-tracker";
 const BAR_WIDTH = 24;
 
-type UsageOption = {
-  title: string;
-  value: ProviderName;
-};
-
-const PROVIDER_OPTIONS: UsageOption[] = [
-  { title: "All Providers", value: "all" },
-  { title: "GitHub Copilot", value: "copilot" },
-  { title: "OpenAI/Codex", value: "openai" },
-];
-
-function getProviderLabel(provider: ProviderName): string {
-  switch (provider) {
-    case "all":
-      return "All Providers";
-    case "copilot":
-      return "GitHub Copilot";
-    case "openai":
-      return "OpenAI/Codex";
-  }
-}
+type ProviderCommand = Pick<ProviderMetadata, "id" | "title" | "command">;
 
 function usageColor(api: TuiPluginApi, percent: number) {
   if (percent >= 90) return api.theme.current.error;
@@ -257,15 +238,6 @@ const tui: TuiPlugin = async (api) => {
       },
     },
     {
-      title: "Usage",
-      value: USAGE_COMMAND_OPEN_ALL,
-      category: "Plugin",
-      hidden: true,
-      onSelect: () => {
-        void openUsage(api, "all");
-      },
-    },
-    {
       title: "Usage Select",
       value: USAGE_COMMAND_OPEN_PICKER,
       category: "Plugin",
@@ -274,24 +246,15 @@ const tui: TuiPlugin = async (api) => {
         openPicker(api);
       },
     },
-    {
-      title: "Usage Copilot",
-      value: USAGE_COMMAND_OPEN_COPILOT,
+    ...PROVIDER_METADATA.map((provider: ProviderCommand) => ({
+      title: provider.title,
+      value: provider.command,
       category: "Plugin",
       hidden: true,
       onSelect: () => {
-        void openUsage(api, "copilot");
+        void openUsage(api, provider.id);
       },
-    },
-    {
-      title: "Usage OpenAI",
-      value: USAGE_COMMAND_OPEN_OPENAI,
-      category: "Plugin",
-      hidden: true,
-      onSelect: () => {
-        void openUsage(api, "openai");
-      },
-    },
+    })),
   ]);
 };
 
