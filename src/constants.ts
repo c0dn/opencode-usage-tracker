@@ -1,77 +1,74 @@
 export type ProviderName = "copilot" | "openai" | "zai" | "all";
 
+export type ConcreteProviderName = Exclude<ProviderName, "all">;
+
+export type ProviderMetadata = {
+  readonly id: ConcreteProviderName;
+  readonly label: string;
+  readonly command: {
+    readonly title: string;
+    readonly value: string;
+  };
+};
+
+export const PROVIDER_METADATA: Record<ConcreteProviderName, ProviderMetadata> = {
+  openai: {
+    id: "openai",
+    label: "OpenAI/Codex",
+    command: {
+      title: "Usage OpenAI",
+      value: "plugin.usage.open.openai",
+    },
+  },
+  copilot: {
+    id: "copilot",
+    label: "GitHub Copilot",
+    command: {
+      title: "Usage Copilot",
+      value: "plugin.usage.open.copilot",
+    },
+  },
+  zai: {
+    id: "zai",
+    label: "Z.AI",
+    command: {
+      title: "Usage Z.AI",
+      value: "plugin.usage.open.zai",
+    },
+  },
+};
+
+export const PROVIDER_ORDER: readonly ConcreteProviderName[] = ["openai", "copilot", "zai"];
+
+type ConcreteProviderLabels = Record<ConcreteProviderName, string>;
+
+const concreteProviderLabels = Object.fromEntries(
+  PROVIDER_ORDER.map((provider) => [provider, PROVIDER_METADATA[provider].label]),
+) as ConcreteProviderLabels;
+
+export const PROVIDER_LABELS: Record<ProviderName, string> = {
+  all: "All Providers",
+  ...concreteProviderLabels,
+};
+
+export const PROVIDER_OPTIONS = PROVIDER_ORDER.map((provider) => ({
+  title: PROVIDER_METADATA[provider].label,
+  value: provider,
+}));
+
+export const PROVIDER_COMMANDS = PROVIDER_ORDER.map((provider) => ({
+  provider,
+  title: PROVIDER_METADATA[provider].command.title,
+  value: PROVIDER_METADATA[provider].command.value,
+}));
+
+export function getProviderLabel(provider: ProviderName): string {
+  return provider === "all" ? PROVIDER_LABELS.all : PROVIDER_METADATA[provider].label;
+}
+
 export const USAGE_COMMAND_SHOW = "plugin.usage.show";
 export const USAGE_COMMAND_OPEN_PICKER = "plugin.usage.open";
 export const USAGE_COMMAND_OPEN_ALL = "plugin.usage.open.all";
-export const USAGE_COMMAND_OPEN_COPILOT = "plugin.usage.open.copilot";
-export const USAGE_COMMAND_OPEN_OPENAI = "plugin.usage.open.openai";
-export const USAGE_COMMAND_OPEN_ZAI = "plugin.usage.open.zai";
-
-export type ProviderMetadata = {
-  id: ProviderName;
-  label: string;
-  title: string;
-  command: string;
-  /**
-   * Provider sort priority for combined result views (lower first).
-   */
-  resultOrder: number;
-};
-
-export type ProviderOption = {
-  title: string;
-  value: ProviderName;
-};
-
-export const PROVIDER_METADATA: readonly ProviderMetadata[] = [
-  {
-    id: "all",
-    label: "All Providers",
-    title: "Usage",
-    command: USAGE_COMMAND_OPEN_ALL,
-    resultOrder: Number.MAX_SAFE_INTEGER,
-  },
-  {
-    id: "copilot",
-    label: "GitHub Copilot",
-    title: "Usage Copilot",
-    command: USAGE_COMMAND_OPEN_COPILOT,
-    resultOrder: 2,
-  },
-  {
-    id: "openai",
-    label: "OpenAI/Codex",
-    title: "Usage OpenAI",
-    command: USAGE_COMMAND_OPEN_OPENAI,
-    resultOrder: 0,
-  },
-  {
-    id: "zai",
-    label: "Z.AI",
-    title: "Usage Z.AI",
-    command: USAGE_COMMAND_OPEN_ZAI,
-    resultOrder: 1,
-  },
-];
-
-export const PROVIDER_OPTIONS: ProviderOption[] = PROVIDER_METADATA.map((provider) => ({
-  title: provider.label,
-  value: provider.id,
-}));
-
-const PROVIDER_METADATA_BY_ID = Object.fromEntries(
-  PROVIDER_METADATA.map((provider) => [provider.id, provider]),
-) as Record<ProviderName, ProviderMetadata>;
-
-export const PROVIDER_RESULT_ORDER = PROVIDER_METADATA
-  .filter((provider): provider is ProviderMetadata & { id: Exclude<ProviderName, "all"> } => provider.id !== "all")
-  .toSorted((a, b) => a.resultOrder - b.resultOrder)
-  .map((provider) => provider.id);
-
-export function getProviderMetadata(provider: ProviderName): ProviderMetadata {
-  return PROVIDER_METADATA_BY_ID[provider];
-}
-
-export function getProviderLabel(provider: ProviderName): string {
-  return getProviderMetadata(provider).label;
-}
+export const USAGE_COMMAND_OPEN_COPILOT = PROVIDER_METADATA.copilot.command.value;
+export const USAGE_COMMAND_OPEN_OPENAI = PROVIDER_METADATA.openai.command.value;
+export const USAGE_COMMAND_OPEN_ZAI = PROVIDER_METADATA.zai.command.value;

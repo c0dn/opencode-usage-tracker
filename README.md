@@ -7,8 +7,8 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 | Provider | Auth Type | Usage Data |
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
-| OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
-| Z.AI | API key | Token quotas + web search usage |
+| OpenAI/Codex | ChatGPT login or API key | ChatGPT login: 5-hour & weekly limits, credits; API key: informational only |
+| Z.AI | API key | quota and usage statistics from the official monitor endpoint |
 
 ## Installation
 
@@ -67,28 +67,17 @@ The plugin reads authentication tokens from OpenCode's `auth.json` file located 
 
 Tokens are automatically populated when you authenticate with providers in OpenCode.
 
+For Z.AI support, the plugin looks for `zai` or `z-ai` entries in `auth.json`. The default quota host is `https://api.z.ai`, and straightforward host override fields such as `baseHost`, `apiHost`, `host`, or `baseUrl` are supported for regional variants.
+
+### OpenAI/Codex auth modes
+
+- **ChatGPT login**: the plugin reads the ChatGPT access token from `auth.json` and fetches Codex usage from `https://chatgpt.com/backend-api/wham/usage`
+- **API key**: the plugin detects manual OpenAI API-key auth and shows an informational card instead of a quota percentage, because the ChatGPT subscription usage endpoint does not apply in API-key mode
+
 ## Notes
 
 - **Read-only**: This plugin only fetches usage data - it does not consume any quota
 - **Fresh Data**: Usage data is fetched fresh on each command (no caching)
-
-### Z.AI auth config
-
-If your OpenCode `auth.json` includes one of these keys, the plugin will automatically use it:
-
-- `zai`
-- `z-ai`
-
-Optional host override can be provided under any of these fields:
-
-- `baseHost`
-- `baseDomain`
-- `host`
-- `apiHost`
-- `baseUrl`
-- `endpoint`
-
-If omitted, the default host is `https://api.z.ai`.
 
 ## License
 

@@ -4,13 +4,14 @@ import { useTerminalDimensions } from "@opentui/solid";
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { createEffect, For, Show } from "solid-js";
 import {
+  PROVIDER_COMMANDS,
+  PROVIDER_OPTIONS,
+  PROVIDER_LABELS,
+  getProviderLabel,
   USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
-  PROVIDER_OPTIONS,
-  PROVIDER_METADATA,
-  getProviderLabel,
+  USAGE_COMMAND_OPEN_ALL,
   type ProviderName,
-  type ProviderMetadata,
 } from "./constants.ts";
 import { fetchUsageResult, type UsageResult } from "./usage.ts";
 import type { UsageData, UsageWindow } from "./utils/format.ts";
@@ -18,7 +19,7 @@ import type { UsageData, UsageWindow } from "./utils/format.ts";
 const PLUGIN_ID = "opencode-usage-tracker";
 const BAR_WIDTH = 24;
 
-type ProviderCommand = Pick<ProviderMetadata, "id" | "title" | "command">;
+const PICKER_OPTIONS = [{ title: PROVIDER_LABELS.all, value: "all" as const }, ...PROVIDER_OPTIONS];
 
 function usageColor(api: TuiPluginApi, percent: number) {
   if (percent >= 90) return api.theme.current.error;
@@ -198,7 +199,7 @@ function openPicker(api: TuiPluginApi): void {
     <DialogSelect
       title="Usage"
       placeholder="Choose provider"
-      options={PROVIDER_OPTIONS}
+      options={PICKER_OPTIONS}
       onSelect={(option) => {
         api.ui.dialog.clear();
         void openUsage(api, option.value as ProviderName);
@@ -238,6 +239,15 @@ const tui: TuiPlugin = async (api) => {
       },
     },
     {
+      title: "Usage",
+      value: USAGE_COMMAND_OPEN_ALL,
+      category: "Plugin",
+      hidden: true,
+      onSelect: () => {
+        void openUsage(api, "all");
+      },
+    },
+    {
       title: "Usage Select",
       value: USAGE_COMMAND_OPEN_PICKER,
       category: "Plugin",
@@ -246,13 +256,13 @@ const tui: TuiPlugin = async (api) => {
         openPicker(api);
       },
     },
-    ...PROVIDER_METADATA.map((provider: ProviderCommand) => ({
-      title: provider.title,
-      value: provider.command,
-      category: "Plugin",
+    ...PROVIDER_COMMANDS.map(({ provider, title, value }) => ({
+      title,
+      value,
+      category: "Plugin" as const,
       hidden: true,
       onSelect: () => {
-        void openUsage(api, provider.id);
+        void openUsage(api, provider);
       },
     })),
   ]);
