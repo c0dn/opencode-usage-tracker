@@ -1,6 +1,6 @@
 import { fetchCopilotUsage } from "./providers/copilot.ts";
-import { fetchOpenAIUsage } from "./providers/openai.ts";
 import { fetchMinimaxUsage } from "./providers/minimax.ts";
+import { fetchOpenAIUsage } from "./providers/openai.ts";
 import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
 import { type UsageData } from "./utils/format.ts";
 import {
@@ -60,10 +60,7 @@ function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boole
   return getProviderFetchers(tokens).some((fetcher) => fetcher.provider === provider);
 }
 
-async function fetchUsageData(
-  tokens: AuthTokens,
-  provider: ProviderName,
-): Promise<UsageData[]> {
+async function fetchUsageData(tokens: AuthTokens, provider: ProviderName): Promise<UsageData[]> {
   const fetchers = getProviderFetchers(tokens).filter(
     (fetcher) => provider === "all" || fetcher.provider === provider,
   );
@@ -107,8 +104,7 @@ function getProviderFetchers(tokens: AuthTokens): ProviderFetcher[] {
       ? {
           provider: "openai",
           name: PROVIDER_METADATA.openai.label,
-          request: () =>
-            fetchOpenAIUsage(openAIAuth.accessToken, openAIAuth.accountId).then((usage) => [usage]),
+          request: () => fetchOpenAIUsage(openAIAuth),
         }
       : undefined,
     copilot: copilotAccessToken

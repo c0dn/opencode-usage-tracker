@@ -5,8 +5,8 @@ import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plug
 import { createEffect, For, Show } from "solid-js";
 import {
   PROVIDER_COMMANDS,
-  PROVIDER_LABELS,
   PROVIDER_OPTIONS,
+  PROVIDER_LABELS,
   getProviderLabel,
   USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
