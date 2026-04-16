@@ -10,10 +10,20 @@ export interface AuthTokens {
   copilot?: {
     accessToken: string;
   };
-  openai?: {
-    accessToken: string;
-    accountId?: string;
-  };
+  openai?: OpenAIAuth;
+}
+
+export type OpenAIAuth = OpenAIChatGPTAuth | OpenAIApiKeyAuth;
+
+export interface OpenAIChatGPTAuth {
+  mode: "chatgpt";
+  accessToken: string;
+  accountId?: string;
+}
+
+export interface OpenAIApiKeyAuth {
+  mode: "api";
+  apiKey: string;
 }
 
 interface AuthJsonProvider {
@@ -23,6 +33,8 @@ interface AuthJsonProvider {
   accountId?: string;
   accessToken?: string;
   token?: string;
+  groupId?: string;
+  group_id?: string;
 }
 
 interface AuthJson {
@@ -92,14 +104,33 @@ export async function getAuthTokens(): Promise<AuthTokens> {
   // OpenAI / Codex
   const openai = authJson["openai"] || authJson["chatgpt"];
   if (openai) {
-    const accessToken = openai.access || openai.accessToken;
-    if (accessToken) {
+    const authType = normalizeAuthType(openai.type);
+    const accessToken = openai.access || openai.accessToken || openai.token;
+    const apiKey = typeof openai.key === "string" ? openai.key.trim() : "";
+
+    if (authType === "api" && apiKey) {
       tokens.openai = {
+        mode: "api",
+        apiKey,
+      };
+    } else if (accessToken) {
+      tokens.openai = {
+        mode: "chatgpt",
         accessToken,
         accountId: openai.accountId,
       };
+    } else if (apiKey) {
+      tokens.openai = {
+        mode: "api",
+        apiKey,
+      };
     }
   }
-  
+
   return tokens;
+}
+
+function normalizeAuthType(type?: string): string | undefined {
+  const normalized = type?.trim().toLowerCase();
+  return normalized && normalized.length > 0 ? normalized : undefined;
 }
