@@ -7,7 +7,7 @@ A plugin for [OpenCode](https://opencode.ai) that shows provider usage in a TUI 
 | Provider | Auth Type | Usage Data |
 |----------|-----------|------------|
 | GitHub Copilot | OAuth | Premium requests quota, reset date |
-| OpenAI/Codex | OAuth | 5-hour & weekly limits, credits |
+| OpenAI/Codex | ChatGPT login or API key | ChatGPT login: 5-hour & weekly limits, credits; API key: informational only |
 | Kimi for Coding | API key | Weekly usage and plan windows (experimental) |
 
 ## Installation
@@ -68,6 +68,11 @@ The plugin reads authentication tokens from OpenCode's `auth.json` file located 
 Tokens are automatically populated when you authenticate with providers in OpenCode.
 
 For experimental Kimi support, the plugin looks for `kimi-for-coding.key` in `auth.json` and queries `https://api.kimi.com/coding/v1/usages`.
+
+### OpenAI/Codex auth modes
+
+- **ChatGPT login**: the plugin reads the ChatGPT access token from `auth.json` and fetches Codex usage from `https://chatgpt.com/backend-api/wham/usage`
+- **API key**: the plugin detects manual OpenAI API-key auth and shows an informational card instead of a quota percentage, because the ChatGPT subscription usage endpoint does not apply in API-key mode
 
 ## Notes
 

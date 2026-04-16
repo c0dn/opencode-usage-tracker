@@ -4,12 +4,13 @@ import { useTerminalDimensions } from "@opentui/solid";
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui";
 import { createEffect, For, Show } from "solid-js";
 import {
+  PROVIDER_COMMANDS,
+  PROVIDER_OPTIONS,
+  PROVIDER_LABELS,
+  getProviderLabel,
   USAGE_COMMAND_SHOW,
   USAGE_COMMAND_OPEN_PICKER,
   USAGE_COMMAND_OPEN_ALL,
-  PROVIDER_OPTIONS,
-  PROVIDER_METADATA,
-  getProviderLabel,
   type ProviderName,
 } from "./constants.ts";
 import { fetchUsageResult, type UsageResult } from "./usage.ts";
@@ -17,6 +18,8 @@ import type { UsageData, UsageWindow } from "./utils/format.ts";
 
 const PLUGIN_ID = "opencode-usage-tracker";
 const BAR_WIDTH = 24;
+
+const PICKER_OPTIONS = [{ title: PROVIDER_LABELS.all, value: "all" as const }, ...PROVIDER_OPTIONS];
 
 function usageColor(api: TuiPluginApi, percent: number) {
   if (percent >= 90) return api.theme.current.error;
@@ -196,7 +199,7 @@ function openPicker(api: TuiPluginApi): void {
     <DialogSelect
       title="Usage"
       placeholder="Choose provider"
-      options={PROVIDER_OPTIONS}
+      options={PICKER_OPTIONS}
       onSelect={(option) => {
         api.ui.dialog.clear();
         void openUsage(api, option.value as ProviderName);
@@ -253,13 +256,13 @@ const tui: TuiPlugin = async (api) => {
         openPicker(api);
       },
     },
-    ...PROVIDER_METADATA.map((provider) => ({
-      title: provider.command.title,
-      value: provider.command.value,
+    ...PROVIDER_COMMANDS.map(({ provider, title, value }) => ({
+      title,
+      value,
       category: "Plugin" as const,
       hidden: true,
       onSelect: () => {
-        void openUsage(api, provider.id);
+        void openUsage(api, provider);
       },
     })),
   ]);

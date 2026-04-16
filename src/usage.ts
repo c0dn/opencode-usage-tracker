@@ -5,9 +5,9 @@ import { getAuthTokens, type AuthTokens } from "./utils/auth.ts";
 import { type UsageData } from "./utils/format.ts";
 import {
   PROVIDER_METADATA,
-  getProviderLabel,
+  PROVIDER_ORDER,
+  type ConcreteProviderName,
   type ProviderName,
-  type SingleProviderName,
 } from "./constants.ts";
 
 export type UsageResult =
@@ -18,7 +18,7 @@ export type UsageResult =
 export async function fetchUsageResult(provider: ProviderName): Promise<UsageResult> {
   const tokens = await getAuthTokens();
 
-  const hasProviders = hasAnyProviderConfigured(tokens);
+  const hasProviders = getProviderFetchers(tokens).length > 0;
   if (!hasProviders) {
     return {
       kind: "empty",
@@ -54,71 +54,77 @@ export async function fetchUsageResult(provider: ProviderName): Promise<UsageRes
 
 function isProviderConfigured(tokens: AuthTokens, provider: ProviderName): boolean {
   if (provider === "all") {
-    return hasAnyProviderConfigured(tokens);
+    return getProviderFetchers(tokens).length > 0;
   }
 
-  return PROVIDER_CONFIG_CHECKS[provider](tokens);
+  return getProviderFetchers(tokens).some((fetcher) => fetcher.provider === provider);
 }
 
-function hasAnyProviderConfigured(tokens: AuthTokens): boolean {
-  return PROVIDER_METADATA.some((provider) => PROVIDER_CONFIG_CHECKS[provider.id](tokens));
-}
-
-const PROVIDER_CONFIG_CHECKS: Record<SingleProviderName, (tokens: AuthTokens) => boolean> = {
-  copilot: (tokens) => Boolean(tokens.copilot?.accessToken),
-  openai: (tokens) => Boolean(tokens.openai?.accessToken),
-  kimi: (tokens) => Boolean(tokens.kimi?.apiKey),
-};
-
-const PROVIDER_USAGE_FETCHERS: Record<SingleProviderName, (tokens: AuthTokens) => Promise<UsageData>> = {
-  copilot: (tokens) => fetchCopilotUsage(tokens.copilot?.accessToken ?? ""),
-  openai: (tokens) => fetchOpenAIUsage(tokens.openai?.accessToken ?? "", tokens.openai?.accountId),
-  kimi: (tokens) => fetchKimiUsage(tokens.kimi?.apiKey ?? ""),
-};
-
-async function fetchUsageData(
-  tokens: AuthTokens,
-  provider: ProviderName,
-): Promise<UsageData[]> {
+async function fetchUsageData(tokens: AuthTokens, provider: ProviderName): Promise<UsageData[]> {
+  const fetchers = getProviderFetchers(tokens).filter(
+    (fetcher) => provider === "all" || fetcher.provider === provider,
+  );
   const results: UsageData[] = [];
-  const selectedProviders = provider === "all"
-    ? PROVIDER_METADATA
-    : PROVIDER_METADATA.filter((metadata) => metadata.id === provider);
-
-  const fetchPromises: Array<{ provider: SingleProviderName; request: Promise<UsageData> }> = [];
-
-  for (const providerMetadata of selectedProviders) {
-    if (!PROVIDER_CONFIG_CHECKS[providerMetadata.id](tokens)) {
-      continue;
-    }
-
-    fetchPromises.push({
-      provider: providerMetadata.id,
-      request: PROVIDER_USAGE_FETCHERS[providerMetadata.id](tokens),
-    });
-  }
-
-  const settled = await Promise.allSettled(fetchPromises.map((item) => item.request));
+  const settled = await Promise.allSettled(fetchers.map((fetcher) => fetcher.request()));
 
   for (const [index, result] of settled.entries()) {
-    const providerInfo = fetchPromises[index];
+    const providerInfo = fetchers[index];
     if (!providerInfo) {
       continue;
     }
 
-    const providerLabel = getProviderLabel(providerInfo.provider);
-
     if (result.status === "fulfilled") {
-      results.push({ ...result.value, provider: providerLabel });
+      results.push(...result.value);
       continue;
     }
 
     results.push({
-      provider: providerLabel,
+      provider: providerInfo.name,
       windows: [],
       error: result.reason instanceof Error ? result.reason.message : "Unknown error",
     });
   }
 
   return results;
+}
+
+type ProviderFetcher = {
+  provider: ConcreteProviderName;
+  name: string;
+  request: () => Promise<UsageData[]>;
+};
+
+function getProviderFetchers(tokens: AuthTokens): ProviderFetcher[] {
+  const openAIAuth = tokens.openai;
+  const copilotAccessToken = tokens.copilot?.accessToken;
+  const kimiApiKey = tokens.kimi?.apiKey;
+
+  const fetchers: Partial<Record<ConcreteProviderName, ProviderFetcher>> = {
+    openai: openAIAuth
+      ? {
+          provider: "openai",
+          name: PROVIDER_METADATA.openai.label,
+          request: () => fetchOpenAIUsage(openAIAuth),
+        }
+      : undefined,
+    copilot: copilotAccessToken
+      ? {
+          provider: "copilot",
+          name: PROVIDER_METADATA.copilot.label,
+          request: () => fetchCopilotUsage(copilotAccessToken).then((usage) => [usage]),
+        }
+      : undefined,
+    kimi: kimiApiKey
+      ? {
+          provider: "kimi",
+          name: PROVIDER_METADATA.kimi.label,
+          request: () => fetchKimiUsage(kimiApiKey).then((usage) => [usage]),
+        }
+      : undefined,
+  };
+
+  return PROVIDER_ORDER.flatMap((provider) => {
+    const fetcher = fetchers[provider];
+    return fetcher ? [fetcher] : [];
+  });
 }

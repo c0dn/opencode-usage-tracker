@@ -1,65 +1,74 @@
 export type ProviderName = "copilot" | "openai" | "kimi" | "all";
-export type SingleProviderName = Exclude<ProviderName, "all">;
 
-export const USAGE_COMMAND_SHOW = "plugin.usage.show";
-export const USAGE_COMMAND_OPEN_PICKER = "plugin.usage.open";
-export const USAGE_COMMAND_OPEN_ALL = "plugin.usage.open.all";
-export const USAGE_COMMAND_OPEN_COPILOT = "plugin.usage.open.copilot";
-export const USAGE_COMMAND_OPEN_OPENAI = "plugin.usage.open.openai";
-export const USAGE_COMMAND_OPEN_KIMI = "plugin.usage.open.kimi";
+export type ConcreteProviderName = Exclude<ProviderName, "all">;
 
-export interface ProviderMetadata {
-  id: SingleProviderName;
-  label: string;
-  command: {
-    title: string;
-    value: string;
+export type ProviderMetadata = {
+  readonly id: ConcreteProviderName;
+  readonly label: string;
+  readonly command: {
+    readonly title: string;
+    readonly value: string;
   };
-}
+};
 
-export const PROVIDER_METADATA: readonly ProviderMetadata[] = [
-  {
+export const PROVIDER_METADATA: Record<ConcreteProviderName, ProviderMetadata> = {
+  openai: {
     id: "openai",
     label: "OpenAI/Codex",
     command: {
       title: "Usage OpenAI",
-      value: USAGE_COMMAND_OPEN_OPENAI,
+      value: "plugin.usage.open.openai",
     },
   },
-  {
+  copilot: {
     id: "copilot",
     label: "GitHub Copilot",
     command: {
       title: "Usage Copilot",
-      value: USAGE_COMMAND_OPEN_COPILOT,
+      value: "plugin.usage.open.copilot",
     },
   },
-  {
+  kimi: {
     id: "kimi",
     label: "Kimi for Coding",
     command: {
       title: "Usage Kimi",
-      value: USAGE_COMMAND_OPEN_KIMI,
+      value: "plugin.usage.open.kimi",
     },
   },
-] as const;
+};
 
-export const PROVIDER_OPTIONS = [
-  { title: "All Providers", value: "all" as const },
-  ...PROVIDER_METADATA.map((provider): { title: string; value: ProviderName } => ({
-    title: provider.label,
-    value: provider.id,
-  })),
-];
+export const PROVIDER_ORDER: readonly ConcreteProviderName[] = ["openai", "copilot", "kimi"];
 
-const providerLabelById = Object.fromEntries(
-  PROVIDER_METADATA.map((provider) => [provider.id, provider.label]),
-) as Record<SingleProviderName, string>;
+type ConcreteProviderLabels = Record<ConcreteProviderName, string>;
+
+const concreteProviderLabels = Object.fromEntries(
+  PROVIDER_ORDER.map((provider) => [provider, PROVIDER_METADATA[provider].label]),
+) as ConcreteProviderLabels;
+
+export const PROVIDER_LABELS: Record<ProviderName, string> = {
+  all: "All Providers",
+  ...concreteProviderLabels,
+};
+
+export const PROVIDER_OPTIONS = PROVIDER_ORDER.map((provider) => ({
+  title: PROVIDER_METADATA[provider].label,
+  value: provider,
+}));
+
+export const PROVIDER_COMMANDS = PROVIDER_ORDER.map((provider) => ({
+  provider,
+  title: PROVIDER_METADATA[provider].command.title,
+  value: PROVIDER_METADATA[provider].command.value,
+}));
 
 export function getProviderLabel(provider: ProviderName): string {
-  if (provider === "all") {
-    return "All Providers";
-  }
-
-  return providerLabelById[provider];
+  return provider === "all" ? PROVIDER_LABELS.all : PROVIDER_METADATA[provider].label;
 }
+
+export const USAGE_COMMAND_SHOW = "plugin.usage.show";
+export const USAGE_COMMAND_OPEN_PICKER = "plugin.usage.open";
+export const USAGE_COMMAND_OPEN_ALL = "plugin.usage.open.all";
+export const USAGE_COMMAND_OPEN_COPILOT = PROVIDER_METADATA.copilot.command.value;
+export const USAGE_COMMAND_OPEN_OPENAI = PROVIDER_METADATA.openai.command.value;
+export const USAGE_COMMAND_OPEN_KIMI = PROVIDER_METADATA.kimi.command.value;
